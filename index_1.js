@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import fs from "fs/promises";
 import path from "path";
+import os from "os";
 
 
 import { Storage } from "@google-cloud/storage";
@@ -11,6 +12,7 @@ import {
   SimpleDirectoryReader,
   LlamaParseReader,
   storageContextFromDefaults,
+  ContextChatEngine
 } from "llamaindex";
 
 const app = express();
@@ -38,6 +40,17 @@ const upload = multer({
 // Global storage context and query engine variables
 let storageContext = null;
 let queryEngine = null;
+
+let messageHistory = [
+    {
+        role: "user",
+        content: "What is the main consequence of offence?"
+    },
+    {
+        role: "assistant",
+        content: "The main consequence of offense is being held captive by the devil to do his will. Offense can lead to deception, bitterness, anger, resentment, betrayal, hatred, and ultimately death if not dealt with. It can also lead to a distorted view of oneself and others, hindering true repentance and forgiveness."
+    }
+]
 
 // Endpoint 1: Create storage context and set up query engine
 app.post("/create-storage-context", async (req, res) => {
@@ -121,6 +134,8 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
 
     const filePath = req.file.path; // Path to the uploaded file by multer
     const destination = `data/temp/${req.file.originalname}`; // Path in GCS
+    const fileName = req.file.originalname;
+
 
     // Upload the file to Google Cloud Storage
     await bucket.upload(filePath, {
@@ -130,9 +145,18 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
 
     console.log(`File uploaded to ${bucketName}/${destination}`);
 
+    // Create a temporary directory for processing files
+    const tempDir = path.join(os.tmpdir(), "temp-files");
+    await fs.mkdir(tempDir, { recursive: true });
+
+    // Copy the uploaded file to the local temporary directory
+    const localTempFilePath = path.join(tempDir, fileName);
+    await fs.copyFile(filePath, localTempFilePath);
+    console.log(`File copied to temporary directory: ${localTempFilePath}`);
+
 
     // Create a temporary directory and copy the file there
-    const tempDir = "mnt/storage/data/temp";
+    // const tempDir = "mnt/storage/data/temp";
 
     // Load the new document from the temporary directory
     console.log(`Loading document from ${tempDir}`);
@@ -171,6 +195,51 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
     console.error("Error adding document to index:", error);
     res.status(500).json({ error: "Failed to add document to index." });
   }
+});
+
+// Route to handle chat requests
+app.post("/chat", async (req, res) => {
+    try {
+        const { message } = req.body; // Expecting the message content from the user
+        if (!message) {
+            return res.status(400).json({ error: "Message content is required." });
+        }
+
+       
+
+        storageContext = await storageContextFromDefaults({
+            persistDir: "mnt/storage/storage", // GCS bucket path
+          });
+        
+            //### Initialize the index
+        let index = await VectorStoreIndex.init({
+            storageContext: storageContext
+        });
+        
+        const retriever = index.asRetriever();
+
+        const chatEngine = new ContextChatEngine({
+            retriever,
+        });
+
+        // Add user message to the history
+        messageHistory.push({ role: "user", content: message });
+
+        // Process the chat message using the chat engine
+        const response = await chatEngine.chat({
+            message,
+            chatHistory: messageHistory,
+        });
+
+        // Add assistant response to the history
+        messageHistory.push({ role: "assistant", content: response });
+
+        // Send the assistant's response back to the user
+        res.json({ response });
+    } catch (error) {
+        console.error("Error processing chat message:", error);
+        res.status(500).json({ error: "An error occurred while processing your request." });
+    }
 });
 
 // Start the server
