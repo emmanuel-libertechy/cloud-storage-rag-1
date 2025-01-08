@@ -1,5 +1,5 @@
 # Use a Node.js base image
-FROM  node:22.9.0-alpine
+FROM  node:22-bullseye
 
 ARG LOGGING=CLOUD_LOGGING_ONLY
 
