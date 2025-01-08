@@ -130,38 +130,20 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
 
     console.log(`File uploaded to ${bucketName}/${destination}`);
 
-    // Wait for gcsfuse to sync the file to the `mnt/storage/data` directory
-    // const syncedPath = `mnt/storage/data/${req.file.originalname}`;
-    // console.log(`Checking if file exists at: ${syncedPath}`);
-
-    // Verify if the file exists at the synced location
-    // try {
-    //   await fs.access(syncedPath); // Check if the file exists
-    //   console.log(`File found at ${syncedPath}`);
-    // } catch (err) {
-    //   console.error(
-    //     `File not found at ${syncedPath}. Check if gcsfuse is syncing properly.`
-    //   );
-    //   return res
-    //     .status(500)
-    //     .json({ error: "File not found in synced directory." });
-    // }
 
     // Create a temporary directory and copy the file there
     const tempDir = "mnt/storage/data/temp";
-    // await fs.mkdir(tempDir, { recursive: true }); // Ensure the directory exists
-    // const tempFilePath = path.join(tempDir, req.file.originalname);
-    // await fs.copyFile(syncedPath, tempFilePath);
-
-    // console.log(`File copied to temporary directory: ${tempFilePath}`);
 
     // Load the new document from the temporary directory
+    console.log(`Loading document from ${tempDir}`);
     const newDocument = await new SimpleDirectoryReader().loadData({
       directoryPath: tempDir, // Provide the directory containing the file
       fileExtToReader: {
         pdf: new LlamaParseReader({ resultType: "markdown" }),
       },
     });
+    console.log(`Loaded document from ${tempDir}`);
+
 
     if (newDocument.length === 0) {
       return res
