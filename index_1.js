@@ -109,7 +109,6 @@ app.post("/ask-question", async (req, res) => {
 });
 
 // Endpoint 3: Add a new document and update the index
-import fs from "fs/promises";
 
 app.post("/add-document", upload.single("file"), async (req, res) => {
   try {
