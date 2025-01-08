@@ -1,6 +1,8 @@
 import express from "express";
 import multer from "multer";
 import fs from "fs/promises";
+import path from "path";
+
 
 import { Storage } from "@google-cloud/storage";
 import {
@@ -110,8 +112,6 @@ app.post("/ask-question", async (req, res) => {
 
 // Endpoint 3: Add a new document and update the index
 
-import path from "path";
-import fs from "fs/promises";
 
 app.post("/add-document", upload.single("file"), async (req, res) => {
   try {
