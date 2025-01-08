@@ -17,7 +17,18 @@ RUN npm install
 COPY . .
 
 # Install gcsfuse
-RUN apt-get update && apt-get install -y gcsfuse
+RUN apt-get update && apt-get install -y \
+    gnupg \
+    lsb-release \
+    curl \
+    fuse && \
+    mkdir -p /etc/apt/keyrings && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+    echo "deb http://packages.cloud.google.com/apt gcsfuse-$(lsb_release -c -s) main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
+    apt-get update && apt-get install -y gcsfuse
+
+# Allow FUSE for non-root users
+RUN chmod +x /usr/bin/fusermount
 
 # Add the entrypoint script
 COPY entrypoint.sh /usr/src/app/entrypoint.sh
