@@ -6,4 +6,4 @@ mkdir -p /usr/src/app/mnt/storage
 gcsfuse --implicit-dirs ccm-literature /usr/src/app/mnt/storage
 
 # Start the Node.js application
-nexec npm start
+node index_1.js
