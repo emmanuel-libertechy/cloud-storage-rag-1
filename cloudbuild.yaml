@@ -1,0 +1,31 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  # Step 1: Build the Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/ccm-app", "."]
+
+  # Step 2: Push the Docker image to Container Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "gcr.io/$PROJECT_ID/ccm-app"]
+
+  # Step 3: Deploy to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "ccm-app"
+      - "--image"
+      - "gcr.io/$PROJECT_ID/ccm-app"
+      - "--platform"
+      - "managed"
+      - "--region"
+      - "us-central1" 
+      - "--allow-unauthenticated"
+      - "GCS_BUCKET_NAME=ccm-literature"
+
+
+# Set the service account to use for deploying
+serviceAccount: "firebase-adminsdk-rla4h@ccm-light-house.iam.gserviceaccount.com"
