@@ -126,9 +126,23 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
   
       console.log(`File uploaded to ${bucketName}/${destination}`);
   
-      // Ensure GCSFUSE has synced the file back to the `mnt/storage/data` directory
-      const syncedPath = `mnt/storage/data/${req.file.originalname}`; // Where GCSFUSE syncs the file
-      console.log(`Synced file path: ${syncedPath}`);
+      // Wait for gcsfuse to sync the file to the `mnt/storage/data` directory
+      const syncedPath = `mnt/storage/data/${req.file.originalname}`;
+      console.log(`Checking if file exists at: ${syncedPath}`);
+  
+      // Verify if the file exists at the synced location
+      const fs = require("fs/promises");
+      try {
+        await fs.access(syncedPath); // Check if the file exists
+        console.log(`File found at ${syncedPath}`);
+      } catch (err) {
+        console.error(
+          `File not found at ${syncedPath}. Check if gcsfuse is syncing properly.`
+        );
+        return res
+          .status(500)
+          .json({ error: "File not found in synced directory." });
+      }
   
       // Load the new document from the synced path
       const newDocument = await new SimpleDirectoryReader().loadData({
