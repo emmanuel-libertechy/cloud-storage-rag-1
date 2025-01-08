@@ -100,6 +100,53 @@ app.post("/ask-question", async (req, res) => {
   }
 });
 
+// Endpoint 3: Add a new document and update the index
+app.post("/add-document", async (req, res) => {
+    try {
+      const { filePath } = req.body;
+  
+      if (!filePath) {
+        return res.status(400).json({ error: "The 'filePath' field is required." });
+      }
+  
+      // Load the new document
+      const newDocument = await new SimpleDirectoryReader().loadData({
+        filePaths: [filePath], // Load a single document by its path
+        fileExtToReader: {
+          pdf: new LlamaParseReader({ resultType: "markdown" }),
+        },
+      });
+  
+      if (newDocument.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "Failed to load the document. Check the file path." });
+      }
+
+      storageContext = await storageContextFromDefaults({
+        persistDir: "mnt/storage/storage", // GCS bucket path
+      });
+    
+        //### Initialize the index
+     let literatureIndex = await VectorStoreIndex.init({
+        storageContext: storageContext
+     });
+  
+      // Add the new document to the existing index
+      if (literatureIndex) {
+        await literatureIndex.addDocuments(newDocument);
+        res.status(200).json({ message: "Document added and index updated successfully." });
+      } else {
+        return res.status(400).json({
+          error: "Index not initialized. Please create the storage context first.",
+        });
+      }
+    } catch (error) {
+      console.error("Error adding document to index:", error);
+      res.status(500).json({ error: "Failed to add document to index." });
+    }
+  });
+
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
