@@ -24,7 +24,6 @@ steps:
       - "--region"
       - "us-central1" 
       - "--allow-unauthenticated"
-      - "GCS_BUCKET_NAME=ccm-literature"
 
 
 # Set the service account to use for deploying
