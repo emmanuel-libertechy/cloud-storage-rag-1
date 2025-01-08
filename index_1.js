@@ -1,5 +1,6 @@
 import express from "express";
 import multer from "multer";
+import fs from "fs/promises";
 
 import { Storage } from "@google-cloud/storage";
 import {
@@ -131,7 +132,6 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
       console.log(`Checking if file exists at: ${syncedPath}`);
   
       // Verify if the file exists at the synced location
-      const fs = require("fs/promises");
       try {
         await fs.access(syncedPath); // Check if the file exists
         console.log(`File found at ${syncedPath}`);
