@@ -148,7 +148,7 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
     // }
 
     // Create a temporary directory and copy the file there
-    const tempDir = "mnt/storage/temp";
+    const tempDir = "mnt/storage/data/temp";
     // await fs.mkdir(tempDir, { recursive: true }); // Ensure the directory exists
     // const tempFilePath = path.join(tempDir, req.file.originalname);
     // await fs.copyFile(syncedPath, tempFilePath);
