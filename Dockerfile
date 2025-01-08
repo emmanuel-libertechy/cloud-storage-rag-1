@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
     apt-get update && apt-get install -y gcsfuse
 
 # Allow FUSE for non-root users
-RUN chmod +x /usr/bin/fusermount
+RUN chmod +x /bin/fusermount
 
 # Add the entrypoint script
 COPY entrypoint.sh /usr/src/app/entrypoint.sh
