@@ -110,6 +110,9 @@ app.post("/ask-question", async (req, res) => {
 
 // Endpoint 3: Add a new document and update the index
 
+import path from "path";
+import fs from "fs/promises";
+
 app.post("/add-document", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
@@ -144,11 +147,17 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
         .json({ error: "File not found in synced directory." });
     }
 
-    console.log(`File path to load: ${syncedPath}`);
+    // Create a temporary directory and copy the file there
+    const tempDir = "mnt/storage/temp";
+    await fs.mkdir(tempDir, { recursive: true }); // Ensure the directory exists
+    const tempFilePath = path.join(tempDir, req.file.originalname);
+    await fs.copyFile(syncedPath, tempFilePath);
 
-    // Load the new document from the synced path
+    console.log(`File copied to temporary directory: ${tempFilePath}`);
+
+    // Load the new document from the temporary directory
     const newDocument = await new SimpleDirectoryReader().loadData({
-      filePaths: [syncedPath], // Pass a valid array of file paths
+      directoryPath: tempDir, // Provide the directory containing the file
       fileExtToReader: {
         pdf: new LlamaParseReader({ resultType: "markdown" }),
       },
