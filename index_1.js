@@ -109,77 +109,79 @@ app.post("/ask-question", async (req, res) => {
 });
 
 // Endpoint 3: Add a new document and update the index
+import fs from "fs/promises";
+
 app.post("/add-document", upload.single("file"), async (req, res) => {
-    try {
-      // Ensure a file was uploaded
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded." });
-      }
-  
-      const filePath = req.file.path; // Path to the uploaded file by multer
-      const destination = `data/${req.file.originalname}`; // Path in GCS
-  
-      // Upload the file to Google Cloud Storage
-      await bucket.upload(filePath, {
-        destination,
-        gzip: true,
-      });
-  
-      console.log(`File uploaded to ${bucketName}/${destination}`);
-  
-      // Wait for gcsfuse to sync the file to the `mnt/storage/data` directory
-      const syncedPath = `mnt/storage/data/${req.file.originalname}`;
-      console.log(`Checking if file exists at: ${syncedPath}`);
-  
-      // Verify if the file exists at the synced location
-      try {
-        await fs.access(syncedPath); // Check if the file exists
-        console.log(`File found at ${syncedPath}`);
-      } catch (err) {
-        console.error(
-          `File not found at ${syncedPath}. Check if gcsfuse is syncing properly.`
-        );
-        return res
-          .status(500)
-          .json({ error: "File not found in synced directory." });
-      }
-  
-      // Load the new document from the synced path
-      const newDocument = await new SimpleDirectoryReader().loadData({
-        filePaths: [syncedPath], // Load a single document by its path
-        fileExtToReader: {
-          pdf: new LlamaParseReader({ resultType: "markdown" }),
-        },
-      });
-  
-      if (newDocument.length === 0) {
-        return res
-          .status(400)
-          .json({ error: "Failed to load the document. Check the file path." });
-      }
-  
-      // Initialize the storage context
-      storageContext = await storageContextFromDefaults({
-        persistDir: "mnt/storage/storage", // GCS bucket path
-      });
-  
-      // Initialize or load the existing index
-      const literatureIndex = await VectorStoreIndex.init({
-        storageContext: storageContext,
-      });
-  
-      // Add the new document to the existing index
-      await literatureIndex.addDocuments(newDocument);
-  
-      res
-        .status(200)
-        .json({ message: "Document added and index updated successfully." });
-    } catch (error) {
-      console.error("Error adding document to index:", error);
-      res.status(500).json({ error: "Failed to add document to index." });
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded." });
     }
-  });
-  
+
+    const filePath = req.file.path; // Path to the uploaded file by multer
+    const destination = `data/${req.file.originalname}`; // Path in GCS
+
+    // Upload the file to Google Cloud Storage
+    await bucket.upload(filePath, {
+      destination,
+      gzip: true,
+    });
+
+    console.log(`File uploaded to ${bucketName}/${destination}`);
+
+    // Wait for gcsfuse to sync the file to the `mnt/storage/data` directory
+    const syncedPath = `mnt/storage/data/${req.file.originalname}`;
+    console.log(`Checking if file exists at: ${syncedPath}`);
+
+    // Verify if the file exists at the synced location
+    try {
+      await fs.access(syncedPath); // Check if the file exists
+      console.log(`File found at ${syncedPath}`);
+    } catch (err) {
+      console.error(
+        `File not found at ${syncedPath}. Check if gcsfuse is syncing properly.`
+      );
+      return res
+        .status(500)
+        .json({ error: "File not found in synced directory." });
+    }
+
+    console.log(`File path to load: ${syncedPath}`);
+
+    // Load the new document from the synced path
+    const newDocument = await new SimpleDirectoryReader().loadData({
+      filePaths: [syncedPath], // Pass a valid array of file paths
+      fileExtToReader: {
+        pdf: new LlamaParseReader({ resultType: "markdown" }),
+      },
+    });
+
+    if (newDocument.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "Failed to load the document. Check the file path." });
+    }
+
+    // Initialize the storage context
+    storageContext = await storageContextFromDefaults({
+      persistDir: "mnt/storage/storage",
+    });
+
+    // Initialize or load the existing index
+    const literatureIndex = await VectorStoreIndex.init({
+      storageContext: storageContext,
+    });
+
+    // Add the new document to the existing index
+    await literatureIndex.addDocuments(newDocument);
+
+    res
+      .status(200)
+      .json({ message: "Document added and index updated successfully." });
+  } catch (error) {
+    console.error("Error adding document to index:", error);
+    res.status(500).json({ error: "Failed to add document to index." });
+  }
+});
 
 // Start the server
 const PORT = process.env.PORT || 3000;
