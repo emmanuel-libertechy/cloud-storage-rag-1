@@ -30,6 +30,10 @@ RUN apt-get update && apt-get install -y \
 # Allow FUSE for non-root users
 RUN chmod +x /bin/fusermount
 
+# Create the directory to be mounted
+RUN mkdir -p /usr/src/app/mnt/storage
+
+
 # Add the entrypoint script
 COPY entrypoint.sh /usr/src/app/entrypoint.sh
 RUN chmod +x /usr/src/app/entrypoint.sh
