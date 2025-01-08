@@ -108,28 +108,31 @@ app.post("/ask-question", async (req, res) => {
 });
 
 // Endpoint 3: Add a new document and update the index
-app.post("/add-document",upload.single("file"), async (req, res) => {
+app.post("/add-document", upload.single("file"), async (req, res) => {
     try {
-    //   const { filePath } = req.body;
-  
+      // Ensure a file was uploaded
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded." });
-    }
-
-      const filePath = req.file.path; // Path to the uploaded file
+      }
+  
+      const filePath = req.file.path; // Path to the uploaded file by multer
       const destination = `data/${req.file.originalname}`; // Path in GCS
-
-      // Upload the file to GCS
+  
+      // Upload the file to Google Cloud Storage
       await bucket.upload(filePath, {
         destination,
+        gzip: true,
       });
-
-      console.log(`File uploaded to ${bucketName}/${destination}`);
-
   
-      // Load the new document from GCS
+      console.log(`File uploaded to ${bucketName}/${destination}`);
+  
+      // Ensure GCSFUSE has synced the file back to the `mnt/storage/data` directory
+      const syncedPath = `mnt/storage/data/${req.file.originalname}`; // Where GCSFUSE syncs the file
+      console.log(`Synced file path: ${syncedPath}`);
+  
+      // Load the new document from the synced path
       const newDocument = await new SimpleDirectoryReader().loadData({
-        filePaths: [`mnt/storage/data/${req.file.originalname}`], // Load a single document by its path
+        filePaths: [syncedPath], // Load a single document by its path
         fileExtToReader: {
           pdf: new LlamaParseReader({ resultType: "markdown" }),
         },
@@ -140,30 +143,29 @@ app.post("/add-document",upload.single("file"), async (req, res) => {
           .status(400)
           .json({ error: "Failed to load the document. Check the file path." });
       }
-
+  
+      // Initialize the storage context
       storageContext = await storageContextFromDefaults({
         persistDir: "mnt/storage/storage", // GCS bucket path
       });
-    
-        //### Initialize the index
-     let literatureIndex = await VectorStoreIndex.init({
-        storageContext: storageContext
-     });
+  
+      // Initialize or load the existing index
+      const literatureIndex = await VectorStoreIndex.init({
+        storageContext: storageContext,
+      });
   
       // Add the new document to the existing index
-      if (literatureIndex) {
-        await literatureIndex.addDocuments(newDocument);
-        res.status(200).json({ message: "Document added and index updated successfully." });
-      } else {
-        return res.status(400).json({
-          error: "Index not initialized. Please create the storage context first.",
-        });
-      }
+      await literatureIndex.addDocuments(newDocument);
+  
+      res
+        .status(200)
+        .json({ message: "Document added and index updated successfully." });
     } catch (error) {
       console.error("Error adding document to index:", error);
       res.status(500).json({ error: "Failed to add document to index." });
     }
   });
+  
 
 // Start the server
 const PORT = process.env.PORT || 3000;
