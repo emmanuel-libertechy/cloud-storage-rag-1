@@ -101,17 +101,28 @@ app.post("/ask-question", async (req, res) => {
 });
 
 // Endpoint 3: Add a new document and update the index
-app.post("/add-document", async (req, res) => {
+app.post("/add-document",upload.single("file"), async (req, res) => {
     try {
-      const { filePath } = req.body;
+    //   const { filePath } = req.body;
   
-      if (!filePath) {
-        return res.status(400).json({ error: "The 'filePath' field is required." });
-      }
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded." });
+    }
+
+      const filePath = req.file.path; // Path to the uploaded file
+      const destination = `data/${req.file.originalname}`; // Path in GCS
+
+      // Upload the file to GCS
+      await bucket.upload(filePath, {
+        destination,
+      });
+
+      console.log(`File uploaded to ${bucketName}/${destination}`);
+
   
-      // Load the new document
+      // Load the new document from GCS
       const newDocument = await new SimpleDirectoryReader().loadData({
-        filePaths: [filePath], // Load a single document by its path
+        filePaths: [`mnt/storage/data/${req.file.originalname}`], // Load a single document by its path
         fileExtToReader: {
           pdf: new LlamaParseReader({ resultType: "markdown" }),
         },
