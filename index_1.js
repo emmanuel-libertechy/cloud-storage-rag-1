@@ -1,4 +1,6 @@
 import express from "express";
+import multer from "multer";
+
 import { Storage } from "@google-cloud/storage";
 import {
   Document,
@@ -15,6 +17,11 @@ app.use(express.json()); // Parse JSON bodies
 const bucketName = "ccm-literature";
 const storage = new Storage();
 const bucket = storage.bucket(bucketName);
+
+// Configure multer to store files temporarily in 'mnt/storage/data'
+const upload = multer({
+    dest: "mnt/storage/data", // Temporary directory for uploaded files
+  });
 
 // Helper to upload files to GCS
 // async function uploadToBucket(filePath, destination) {
