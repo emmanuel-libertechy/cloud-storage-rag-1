@@ -18,6 +18,13 @@ import {
 const app = express();
 app.use(express.json()); // Parse JSON bodies
 
+import admin from 'firebase-admin';
+serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+const firestore = admin.firestore();
+
 // Google Cloud Storage setup
 const bucketName = "ccm-literature";
 const storage = new Storage();
@@ -41,16 +48,16 @@ const upload = multer({
 let storageContext = null;
 let queryEngine = null;
 
-let messageHistory = [
-    {
-        role: "user",
-        content: "What is the main consequence of offence?"
-    },
-    {
-        role: "assistant",
-        content: "The main consequence of offense is being held captive by the devil to do his will. Offense can lead to deception, bitterness, anger, resentment, betrayal, hatred, and ultimately death if not dealt with. It can also lead to a distorted view of oneself and others, hindering true repentance and forgiveness."
-    }
-]
+// let messageHistory = [
+//     {
+//         role: "user",
+//         content: "What is the main consequence of offence?"
+//     },
+//     {
+//         role: "assistant",
+//         content: "The main consequence of offense is being held captive by the devil to do his will. Offense can lead to deception, bitterness, anger, resentment, betrayal, hatred, and ultimately death if not dealt with. It can also lead to a distorted view of oneself and others, hindering true repentance and forgiveness."
+//     }
+// ]
 
 // Endpoint 1: Create storage context and set up query engine
 app.post("/create-storage-context", async (req, res) => {
@@ -200,27 +207,34 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
 // Route to handle chat requests
 app.post("/chat", async (req, res) => {
     try {
-        const { message } = req.body; // Expecting the message content from the user
-        if (!message) {
-            return res.status(400).json({ error: "Message content is required." });
+        const { message, userId } = req.body; // Expecting the message content and user ID from the user
+        if (!message || !userId) {
+            return res.status(400).json({ error: "Message and userId are required." });
         }
-
-       
 
         storageContext = await storageContextFromDefaults({
             persistDir: "mnt/storage/storage", // GCS bucket path
-          });
-        
-            //### Initialize the index
-        let index = await VectorStoreIndex.init({
-            storageContext: storageContext
         });
-        
-        const retriever = index.asRetriever();
 
+        // Initialize the index
+        let index = await VectorStoreIndex.init({
+            storageContext: storageContext,
+        });
+
+        const retriever = index.asRetriever();
         const chatEngine = new ContextChatEngine({
             retriever,
         });
+
+        // Retrieve existing chat history for the user
+        const userDocRef = firestore.collection("chats").doc(userId);
+        const userDoc = await userDocRef.get();
+        let messageHistory = [];
+
+        if (userDoc.exists) {
+            // Use existing history
+            messageHistory = userDoc.data().messageHistory || [];
+        }
 
         // Add user message to the history
         messageHistory.push({ role: "user", content: message });
@@ -232,15 +246,19 @@ app.post("/chat", async (req, res) => {
         });
 
         // Add assistant response to the history
-        messageHistory.push({ role: "assistant", content: response });
+        messageHistory.push({ role: "assistant", content: response.message.content });
+
+        // Persist updated chat history back to Firestore
+        await userDocRef.set({ messageHistory });
 
         // Send the assistant's response back to the user
-        res.json({ response });
+        res.json({ response:response.message.content });
     } catch (error) {
         console.error("Error processing chat message:", error);
         res.status(500).json({ error: "An error occurred while processing your request." });
     }
 });
+
 
 // Start the server
 const PORT = process.env.PORT || 3000;
