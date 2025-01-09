@@ -66,21 +66,27 @@ app.post("/create-storage-context", async (req, res) => {
     storageContext = await storageContextFromDefaults({
       persistDir: "mnt/storage/storage", // GCS bucket path
     });
+    console.log('storage context created')
 
     // Load documents
     // storage fuse must have been used to load to this directory mnt/storage
+    console.log('loading documents')
     const literatureDocuments = await new SimpleDirectoryReader().loadData({
       directoryPath: "mnt/storage/data", // GCS bucket path
       fileExtToReader: {
         pdf: new LlamaParseReader({ resultType: "markdown" }),
       },
     });
+    console.log('documents loaded')
+
 
     // Create the VectorStoreIndex and query engine
+    console.log('creating index')
     const literatureIndex = await VectorStoreIndex.fromDocuments(
       literatureDocuments,
       { storageContext }
     );
+    console.log('index created')
     queryEngine = literatureIndex.asQueryEngine();
 
     res.status(200).json({
