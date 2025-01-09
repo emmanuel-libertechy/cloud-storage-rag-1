@@ -161,7 +161,7 @@ app.post("/ask-question", async (req, res) => {
         waitForAsync: true,
       });
 
-    const response = await agent.query({ query });
+    const response = await agent.chat({ message:query });
     res.status(200).json({ response: response.toString() });
   } catch (error) {
     console.error("Error processing query:", error);
