@@ -2,6 +2,7 @@
   "name": "cloud-storage-rag-1",
   "version": "1.0.0",
   "description": "First repository for Cloud Storage Based RAG",
+  "type": "module",
   "main": "index_1.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

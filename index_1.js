@@ -186,7 +186,7 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
     });
 
     // Add the new document to the existing index
-    await literatureIndex.addDocuments(newDocument);
+    await literatureIndex.insert(newDocument);
 
     res
       .status(200)
