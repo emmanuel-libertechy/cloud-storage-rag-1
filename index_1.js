@@ -12,8 +12,13 @@ import {
   SimpleDirectoryReader,
   LlamaParseReader,
   storageContextFromDefaults,
-  ContextChatEngine
+  ContextChatEngine,
+  OpenAIAgent,
+  QueryEngineTool,
+  RouterQueryEngine,
 } from "llamaindex";
+
+import { locationFunctionTool } from "./location_data";
 
 const app = express();
 app.use(express.json()); // Parse JSON bodies
@@ -109,8 +114,6 @@ app.post("/ask-question", async (req, res) => {
         .json({ error: "The 'query' field is required in the request body." });
     }
 
-
-
     storageContext = await storageContextFromDefaults({
         persistDir: "mnt/storage/storage", // GCS bucket path
       });
@@ -128,7 +131,37 @@ app.post("/ask-question", async (req, res) => {
         .json({ error: "Query engine is not initialized. Please set up the storage context first." });
     }
 
-    const response = await queryEngine.query({ query });
+    const routerQueryEngine = await RouterQueryEngine.fromDefaults({
+        queryEngineTools: [
+          {
+            queryEngine: queryEngine,
+            description: "Useful for questions about Christian faith as well as vector embeddings and Generative AI",
+          },
+        //   {
+        //     queryEngine: queryEngine2,
+        //     description: "Useful for questions about vector embeddings",
+        //   },
+        ],
+      });
+
+    // Create Query Engine Tool
+    const queryEngineTool = new QueryEngineTool({
+        queryEngine: routerQueryEngine,
+        metadata: {
+        name: "faith_and_embedding_engine",
+        description: "A tool that can answer questions about Christian faith and document embeddings.",
+        },
+    });
+
+    // Register tools with the agent
+    const agent = new OpenAIAgent({
+        tools: [queryEngineTool,  locationFunctionTool],
+        verbose: true,
+        model: "gpt-4o",
+        waitForAsync: true,
+      });
+
+    const response = await agent.query({ query });
     res.status(200).json({ response: response.toString() });
   } catch (error) {
     console.error("Error processing query:", error);
