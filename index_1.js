@@ -187,13 +187,16 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
       persistDir: "mnt/storage/storage",
     });
 
-    // Initialize or load the existing index
-    const literatureIndex = await VectorStoreIndex.init({
-      storageContext: storageContext,
-    });
+    // // Initialize or load the existing index
+    // const literatureIndex = await VectorStoreIndex.init({
+    //   storageContext: storageContext,
+    // });
 
-    // Add the new document to the existing index
-    await literatureIndex.insert(newDocument);
+    // // Add the new document to the existing index
+    // await literatureIndex.insert(newDocument);
+    await VectorStoreIndex.fromDocuments(newDocument,{
+        storageContext
+      })
 
     res
       .status(200)
