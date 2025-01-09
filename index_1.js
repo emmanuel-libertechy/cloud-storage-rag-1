@@ -18,7 +18,7 @@ import {
   RouterQueryEngine,
 } from "llamaindex";
 
-import { locationFunctionTool } from "./location_data";
+import { locationFunctionTool } from "./location_data.js";
 
 const app = express();
 app.use(express.json()); // Parse JSON bodies
