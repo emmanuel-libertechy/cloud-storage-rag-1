@@ -40,6 +40,7 @@ const upload = multer({
     dest: "mnt/storage/data", // Temporary directory for uploaded files
   });
 
+
 // Helper to upload files to GCS
 // async function uploadToBucket(filePath, destination) {
 //   await bucket.upload(filePath, {
@@ -52,6 +53,25 @@ const upload = multer({
 // Global storage context and query engine variables
 let storageContext = null;
 let queryEngine = null;
+
+// Cache for VectorStoreIndex and QueryEngine
+let cachedIndex = null;
+let cachedQueryEngine = null;
+
+// Lazy-loading function for VectorStoreIndex
+async function loadVectorIndex() {
+    if (!cachedIndex || !cachedQueryEngine) {
+      console.log("Loading vector index...");
+      const storageContext = await storageContextFromDefaults({
+        persistDir: "mnt/storage/storage", // Path for vector storage
+      });
+  
+      cachedIndex = await VectorStoreIndex.init({ storageContext });
+      cachedQueryEngine = await cachedIndex.asQueryEngine();
+    }
+  
+    return cachedQueryEngine;
+  }
 
 // let messageHistory = [
 //     {
@@ -87,12 +107,12 @@ app.post("/create-storage-context", async (req, res) => {
 
     // Create the VectorStoreIndex and query engine
     console.log('creating index')
-    const literatureIndex = await VectorStoreIndex.fromDocuments(
+    cachedIndex = await VectorStoreIndex.fromDocuments(
       literatureDocuments,
       { storageContext }
     );
     console.log('index created')
-    queryEngine = literatureIndex.asQueryEngine();
+    cachedQueryEngine = cachedIndex.asQueryEngine();
 
     res.status(200).json({
       message: "Storage context and query engine created successfully.",
@@ -105,69 +125,109 @@ app.post("/create-storage-context", async (req, res) => {
 
 // Endpoint 2: Ask a question
 app.post("/ask-question", async (req, res) => {
-  try {
-    const { query } = req.body;
-   
-    if (!query) {
-      return res
-        .status(400)
-        .json({ error: "The 'query' field is required in the request body." });
-    }
-
-    storageContext = await storageContextFromDefaults({
-        persistDir: "mnt/storage/storage", // GCS bucket path
-      });
-    
-        //### Initialize the index
-    let index = await VectorStoreIndex.init({
-        storageContext: storageContext
-    });
-    
-    queryEngine = await index.asQueryEngine()
-
-    if (!queryEngine) {
-      return res
-        .status(400)
-        .json({ error: "Query engine is not initialized. Please set up the storage context first." });
-    }
-
-    const routerQueryEngine = await RouterQueryEngine.fromDefaults({
-        queryEngineTools: [
-          {
-            queryEngine: queryEngine,
-            description: "Useful for questions about Christian faith as well as vector embeddings and Generative AI",
-          },
-        //   {
-        //     queryEngine: queryEngine2,
-        //     description: "Useful for questions about vector embeddings",
-        //   },
-        ],
-      });
-
-    // Create Query Engine Tool
-    const queryEngineTool = new QueryEngineTool({
-        queryEngine: routerQueryEngine,
-        metadata: {
-        name: "faith_and_embedding_engine",
-        description: "A tool that can answer questions about Christian faith and document embeddings.",
+    try {
+      const { query } = req.body;
+  
+      if (!query) {
+        return res
+          .status(400)
+          .json({ error: "The 'query' field is required in the request body." });
+      }
+  
+      // Lazy-load the query engine tool when needed
+      const queryEngineTool = new QueryEngineTool({
+        async queryEngine() {
+          return loadVectorIndex();
         },
-    });
-
-    // Register tools with the agent
-    const agent = new OpenAIAgent({
-        tools: [queryEngineTool,  locationFunctionTool],
+        metadata: {
+          name: "faith_and_embedding_engine",
+          description:
+            "A tool for answering questions on Christian faith and document embeddings.",
+        },
+      });
+  
+  
+      // Agent with tools
+      const agent = new OpenAIAgent({
+        tools: [queryEngineTool, locationFunctionTool],
         verbose: true,
         model: "gpt-4o",
         waitForAsync: true,
       });
+  
+      // Ask the question
+      const response = await agent.chat({ message: query });
+  
+      res.status(200).json({ response: response.toString() });
+    } catch (error) {
+      console.error("Error processing query:", error);
+      res.status(500).json({ error: "Failed to process query." });
+    }
+  });
+// app.post("/ask-question", async (req, res) => {
+//   try {
+//     const { query } = req.body;
+   
+//     if (!query) {
+//       return res
+//         .status(400)
+//         .json({ error: "The 'query' field is required in the request body." });
+//     }
 
-    const response = await agent.chat({ message:query });
-    res.status(200).json({ response: response.toString() });
-  } catch (error) {
-    console.error("Error processing query:", error);
-    res.status(500).json({ error: "Failed to process query." });
-  }
-});
+//     storageContext = await storageContextFromDefaults({
+//         persistDir: "mnt/storage/storage", // GCS bucket path
+//       });
+    
+//         //### Initialize the index
+//     let index = await VectorStoreIndex.init({
+//         storageContext: storageContext
+//     });
+    
+//     queryEngine = await index.asQueryEngine()
+
+//     if (!queryEngine) {
+//       return res
+//         .status(400)
+//         .json({ error: "Query engine is not initialized. Please set up the storage context first." });
+//     }
+
+//     const routerQueryEngine = await RouterQueryEngine.fromDefaults({
+//         queryEngineTools: [
+//           {
+//             queryEngine: queryEngine,
+//             description: "Useful for questions about Christian faith as well as vector embeddings and Generative AI",
+//           },
+//         //   {
+//         //     queryEngine: queryEngine2,
+//         //     description: "Useful for questions about vector embeddings",
+//         //   },
+//         ],
+//       });
+
+//     // Create Query Engine Tool
+//     const queryEngineTool = new QueryEngineTool({
+//         queryEngine: routerQueryEngine,
+//         metadata: {
+//         name: "faith_and_embedding_engine",
+//         description: "A tool that can answer questions about Christian faith and document embeddings.",
+//         },
+//     });
+
+//     // Register tools with the agent
+//     const agent = new OpenAIAgent({
+//         tools: [queryEngineTool,  locationFunctionTool],
+//         verbose: true,
+//         model: "gpt-4o",
+//         waitForAsync: true,
+//       });
+
+//     const response = await agent.chat({ message:query });
+//     res.status(200).json({ response: response.toString() });
+//   } catch (error) {
+//     console.error("Error processing query:", error);
+//     res.status(500).json({ error: "Failed to process query." });
+//   }
+// });
 
 // Endpoint 3: Add a new document and update the index
 
@@ -249,57 +309,102 @@ app.post("/add-document", upload.single("file"), async (req, res) => {
 // Route to handle chat requests
 app.post("/chat", async (req, res) => {
     try {
-        const { message, userId } = req.body; // Expecting the message content and user ID from the user
-        if (!message || !userId) {
-            return res.status(400).json({ error: "Message and userId are required." });
-        }
-
-        storageContext = await storageContextFromDefaults({
-            persistDir: "mnt/storage/storage", // GCS bucket path
-        });
-
-        // Initialize the index
-        let index = await VectorStoreIndex.init({
-            storageContext: storageContext,
-        });
-
-        const retriever = index.asRetriever();
-        const chatEngine = new ContextChatEngine({
-            retriever,
-        });
-
-        // Retrieve existing chat history for the user
-        const userDocRef = firestore.collection("chats").doc(userId);
-        const userDoc = await userDocRef.get();
-        let messageHistory = [];
-
-        if (userDoc.exists) {
-            // Use existing history
-            messageHistory = userDoc.data().messageHistory || [];
-        }
-
-        // Add user message to the history
-        messageHistory.push({ role: "user", content: message });
-
-        // Process the chat message using the chat engine
-        const response = await chatEngine.chat({
-            message,
-            chatHistory: messageHistory,
-        });
-
-        // Add assistant response to the history
-        messageHistory.push({ role: "assistant", content: response.message.content });
-
-        // Persist updated chat history back to Firestore
-        await userDocRef.set({ messageHistory });
-
-        // Send the assistant's response back to the user
-        res.json({ response:response.message.content });
+      const { message, userId } = req.body;
+  
+      if (!message || !userId) {
+        return res.status(400).json({ error: "Message and userId are required." });
+      }
+  
+      // Lazy-load the retriever
+      const retriever = await loadVectorRetriever();
+  
+      // Initialize the ContextChatEngine
+      const chatEngine = new ContextChatEngine({ retriever });
+  
+      // Retrieve existing chat history for the user from Firestore
+      const userDocRef = firestore.collection("chats").doc(userId);
+      const userDoc = await userDocRef.get();
+      let messageHistory = [];
+  
+      if (userDoc.exists) {
+        messageHistory = userDoc.data().messageHistory || [];
+      }
+  
+      // Add the user's message to the history
+      messageHistory.push({ role: "user", content: message });
+  
+      // Process the chat message using the chat engine
+      const response = await chatEngine.chat({
+        message,
+        chatHistory: messageHistory,
+      });
+  
+      // Add the assistant's response to the history
+      messageHistory.push({ role: "assistant", content: response.message.content });
+  
+      // Persist updated chat history back to Firestore
+      await userDocRef.set({ messageHistory });
+  
+      // Send the assistant's response back to the user
+      res.status(200).json({ response: response.message.content });
     } catch (error) {
-        console.error("Error processing chat message:", error);
-        res.status(500).json({ error: "An error occurred while processing your request." });
+      console.error("Error processing chat message:", error);
+      res.status(500).json({ error: "An error occurred while processing your request." });
     }
-});
+  });
+// app.post("/chat", async (req, res) => {
+//     try {
+//         const { message, userId } = req.body; // Expecting the message content and user ID from the user
+//         if (!message || !userId) {
+//             return res.status(400).json({ error: "Message and userId are required." });
+//         }
+
+//         storageContext = await storageContextFromDefaults({
+//             persistDir: "mnt/storage/storage", // GCS bucket path
+//         });
+
+//         // Initialize the index
+//         let index = await VectorStoreIndex.init({
+//             storageContext: storageContext,
+//         });
+
+//         const retriever = index.asRetriever();
+//         const chatEngine = new ContextChatEngine({
+//             retriever,
+//         });
+
+//         // Retrieve existing chat history for the user
+//         const userDocRef = firestore.collection("chats").doc(userId);
+//         const userDoc = await userDocRef.get();
+//         let messageHistory = [];
+
+//         if (userDoc.exists) {
+//             // Use existing history
+//             messageHistory = userDoc.data().messageHistory || [];
+//         }
+
+//         // Add user message to the history
+//         messageHistory.push({ role: "user", content: message });
+
+//         // Process the chat message using the chat engine
+//         const response = await chatEngine.chat({
+//             message,
+//             chatHistory: messageHistory,
+//         });
+
+//         // Add assistant response to the history
+//         messageHistory.push({ role: "assistant", content: response.message.content });
+
+//         // Persist updated chat history back to Firestore
+//         await userDocRef.set({ messageHistory });
+
+//         // Send the assistant's response back to the user
+//         res.json({ response:response.message.content });
+//     } catch (error) {
+//         console.error("Error processing chat message:", error);
+//         res.status(500).json({ error: "An error occurred while processing your request." });
+//     }
+// });
 
 
 // Start the server
