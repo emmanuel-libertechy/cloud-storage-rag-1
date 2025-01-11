@@ -124,110 +124,110 @@ app.post("/create-storage-context", async (req, res) => {
 });
 
 // Endpoint 2: Ask a question
-app.post("/ask-question", async (req, res) => {
-    try {
-      const { query } = req.body;
-  
-      if (!query) {
-        return res
-          .status(400)
-          .json({ error: "The 'query' field is required in the request body." });
-      }
-  
-      // Lazy-load the query engine tool when needed
-      const queryEngineTool = new QueryEngineTool({
-        async queryEngine() {
-          return loadVectorIndex();
-        },
-        metadata: {
-          name: "faith_and_embedding_engine",
-          description:
-            "A tool for answering questions on Christian faith and document embeddings.",
-        },
-      });
-  
-  
-      // Agent with tools
-      const agent = new OpenAIAgent({
-        tools: [queryEngineTool, locationFunctionTool],
-        verbose: true,
-        model: "gpt-4o",
-        waitForAsync: true,
-      });
-  
-      // Ask the question
-      const response = await agent.chat({ message: query });
-  
-      res.status(200).json({ response: response.toString() });
-    } catch (error) {
-      console.error("Error processing query:", error);
-      res.status(500).json({ error: "Failed to process query." });
-    }
-  });
 // app.post("/ask-question", async (req, res) => {
-//   try {
-//     const { query } = req.body;
-   
-//     if (!query) {
-//       return res
-//         .status(400)
-//         .json({ error: "The 'query' field is required in the request body." });
-//     }
-
-//     storageContext = await storageContextFromDefaults({
-//         persistDir: "mnt/storage/storage", // GCS bucket path
-//       });
-    
-//         //### Initialize the index
-//     let index = await VectorStoreIndex.init({
-//         storageContext: storageContext
-//     });
-    
-//     queryEngine = await index.asQueryEngine()
-
-//     if (!queryEngine) {
-//       return res
-//         .status(400)
-//         .json({ error: "Query engine is not initialized. Please set up the storage context first." });
-//     }
-
-//     const routerQueryEngine = await RouterQueryEngine.fromDefaults({
-//         queryEngineTools: [
-//           {
-//             queryEngine: queryEngine,
-//             description: "Useful for questions about Christian faith as well as vector embeddings and Generative AI",
-//           },
-//         //   {
-//         //     queryEngine: queryEngine2,
-//         //     description: "Useful for questions about vector embeddings",
-//         //   },
-//         ],
-//       });
-
-//     // Create Query Engine Tool
-//     const queryEngineTool = new QueryEngineTool({
-//         queryEngine: routerQueryEngine,
-//         metadata: {
-//         name: "faith_and_embedding_engine",
-//         description: "A tool that can answer questions about Christian faith and document embeddings.",
+//     try {
+//       const { query } = req.body;
+  
+//       if (!query) {
+//         return res
+//           .status(400)
+//           .json({ error: "The 'query' field is required in the request body." });
+//       }
+  
+//       // Lazy-load the query engine tool when needed
+//       const queryEngineTool = new QueryEngineTool({
+//         async queryEngine() {
+//           return loadVectorIndex();
 //         },
-//     });
-
-//     // Register tools with the agent
-//     const agent = new OpenAIAgent({
-//         tools: [queryEngineTool,  locationFunctionTool],
+//         metadata: {
+//           name: "faith_and_embedding_engine",
+//           description:
+//             "A tool for answering questions on Christian faith and document embeddings.",
+//         },
+//       });
+  
+  
+//       // Agent with tools
+//       const agent = new OpenAIAgent({
+//         tools: [queryEngineTool, locationFunctionTool],
 //         verbose: true,
 //         model: "gpt-4o",
 //         waitForAsync: true,
 //       });
+  
+//       // Ask the question
+//       const response = await agent.chat({ message: query });
+  
+//       res.status(200).json({ response: response.toString() });
+//     } catch (error) {
+//       console.error("Error processing query:", error);
+//       res.status(500).json({ error: "Failed to process query." });
+//     }
+//   });
+app.post("/ask-question", async (req, res) => {
+  try {
+    const { query } = req.body;
+   
+    if (!query) {
+      return res
+        .status(400)
+        .json({ error: "The 'query' field is required in the request body." });
+    }
 
-//     const response = await agent.chat({ message:query });
-//     res.status(200).json({ response: response.toString() });
-//   } catch (error) {
-//     console.error("Error processing query:", error);
-//     res.status(500).json({ error: "Failed to process query." });
-//   }
-// });
+    storageContext = await storageContextFromDefaults({
+        persistDir: "mnt/storage/storage", // GCS bucket path
+      });
+    
+        //### Initialize the index
+    let index = await VectorStoreIndex.init({
+        storageContext: storageContext
+    });
+    
+    queryEngine = await index.asQueryEngine()
+
+    if (!queryEngine) {
+      return res
+        .status(400)
+        .json({ error: "Query engine is not initialized. Please set up the storage context first." });
+    }
+
+    const routerQueryEngine = await RouterQueryEngine.fromDefaults({
+        queryEngineTools: [
+          {
+            queryEngine: queryEngine,
+            description: "Useful for questions about Christian faith as well as vector embeddings and Generative AI",
+          },
+        //   {
+        //     queryEngine: queryEngine2,
+        //     description: "Useful for questions about vector embeddings",
+        //   },
+        ],
+      });
+
+    // Create Query Engine Tool
+    const queryEngineTool = new QueryEngineTool({
+        queryEngine: routerQueryEngine,
+        metadata: {
+        name: "faith_and_embedding_engine",
+        description: "A tool that can answer questions about Christian faith and document embeddings.",
+        },
+    });
+
+    // Register tools with the agent
+    const agent = new OpenAIAgent({
+        tools: [queryEngineTool,  locationFunctionTool],
+        verbose: true,
+        model: "gpt-4o",
+        waitForAsync: true,
+      });
+
+    const response = await agent.chat({ message:query });
+    res.status(200).json({ response: response.toString() });
+  } catch (error) {
+    console.error("Error processing query:", error);
+    res.status(500).json({ error: "Failed to process query." });
+  }
+});
 
 // Endpoint 3: Add a new document and update the index
 

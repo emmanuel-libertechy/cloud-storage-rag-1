@@ -13,6 +13,7 @@ export const locationFunctionTool = {
     },
     call: async ({ address }) => {
       try {
+        console.log('Tool in use...')
         const gmaps = new Client({});
         const response = await gmaps.geocode({
           params: {
